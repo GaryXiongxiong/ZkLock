@@ -1,5 +1,6 @@
 # ZkLock
-A distribution lock encapsulation using ZooKeeper.
+A distribution lock encapsulation using ZooKeeper. See [分布式锁的Redis与Zookeeper实现
+](https://jiangyixiong.top/2020/10/12/%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E7%9A%84Redis%E4%B8%8EZooKeeper%E5%AE%9E%E7%8E%B0/)
 
 ## Quick Start
 
