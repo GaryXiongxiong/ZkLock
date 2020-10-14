@@ -62,7 +62,7 @@ class DemoApplicationTests {
             for(int i=0;i<5;i++){
                 System.out.println(Thread.currentThread().getName()+" [Locked]-> "+i);
             }
-            lock.releaseLock();
+            lock.unlock();
         },"ThreadA");
         Thread t2 = new Thread(()->{
             ZkLock lock = zkLockFactory.getLock("/testLock");
@@ -75,7 +75,7 @@ class DemoApplicationTests {
             for(int i=0;i<5;i++){
                 System.out.println(Thread.currentThread().getName()+" [Locked]-> "+i);
             }
-            lock.releaseLock();
+            lock.unlock();
         },"ThreadB");
         Thread t3 = new Thread(()->{
             ZkLock lock = zkLockFactory.getLock("/testLock");
@@ -88,7 +88,7 @@ class DemoApplicationTests {
                 for(int i=0;i<5;i++){
                     System.out.println(Thread.currentThread().getName()+" [Locked]-> "+i);
                 }
-                lock.releaseLock();
+                lock.unlock();
             }else{
                 System.out.println("Thread C failed to acquire the lock");
             }

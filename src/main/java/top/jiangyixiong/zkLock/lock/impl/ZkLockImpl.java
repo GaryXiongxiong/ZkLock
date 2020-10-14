@@ -140,7 +140,7 @@ public class ZkLockImpl implements ZkLock {
     }
 
     @Override
-    public boolean releaseLock() {
+    public boolean unlock() {
         if(null!=curNode.get()&&zkClient.exists(curNode.get())&& checkLock()){
             if(zkClient.delete(curNode.get())){
                 LOG.debug("Lock [{}] released, Node [{}] has been deleted",lockPath,curNode.get());
