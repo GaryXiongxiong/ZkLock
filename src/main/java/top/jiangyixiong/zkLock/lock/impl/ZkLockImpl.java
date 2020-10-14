@@ -67,7 +67,7 @@ public class ZkLockImpl implements ZkLock {
      *
      * @return Ture if thread occupied the lock
      */
-    private boolean tryLock() {
+    private boolean checkLock() {
         List<String> lockQueue = zkClient.getChildren(lockPath);
         Collections.sort(lockQueue);
         if(lockQueue.size()>0&&(lockPath+"/"+lockQueue.get(0)).equals(curNode.get())){
@@ -81,6 +81,7 @@ public class ZkLockImpl implements ZkLock {
         }
     }
 
+    @Override
     public void lock() {
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -104,9 +105,9 @@ public class ZkLockImpl implements ZkLock {
             throw new LockException("ZkLock is not reentrant");
         }
 
-        if(!tryLock()&&zkClient.exists(preNode.get())){
+        if(!checkLock()&&zkClient.exists(preNode.get())){
             zkClient.subscribeDataChanges(preNode.get(),listener);
-            while(zkClient.exists(preNode.get())&&!tryLock()){
+            while(zkClient.exists(preNode.get())&&!checkLock()){
                 try {
                     LOG.debug("Thread blocked in lock [{}]",lockPath);
                     latch.await();
@@ -118,10 +119,31 @@ public class ZkLockImpl implements ZkLock {
         }
     }
 
-    public boolean releaseLock() {
-        if(null!=curNode.get()&&zkClient.exists(curNode.get())&&tryLock()){
+    @Override
+    public boolean tryLock() {
+        if(null==curNode.get()){
+            curNode.set(zkClient.createEphemeralSequential(lockPath+"/","Lock"));
+            LOG.debug("curNode [{}] has been created",curNode.get());
+        }else {
+            throw new LockException("ZkLock is not reentrant");
+        }
+        if(checkLock()){
+            return true;
+        }else if(zkClient.exists(curNode.get())){
             if(zkClient.delete(curNode.get())){
-                LOG.debug("Lock [{}] released, Node [{}] deleted",lockPath,curNode.get());
+                LOG.debug("Unable to acquire lock [{}], Node [{}] has been deleted",lockPath,curNode.get());
+                curNode.remove();
+                return false;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean releaseLock() {
+        if(null!=curNode.get()&&zkClient.exists(curNode.get())&& checkLock()){
+            if(zkClient.delete(curNode.get())){
+                LOG.debug("Lock [{}] released, Node [{}] has been deleted",lockPath,curNode.get());
                 curNode.remove();
                 return true;
             }

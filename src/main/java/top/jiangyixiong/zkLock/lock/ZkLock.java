@@ -17,4 +17,10 @@ public interface ZkLock {
      * @return true if release successfully.
      */
     boolean releaseLock();
+
+    /**
+     * Try to acquire lock non-blockly, return ture if acquired lock successfully
+     * @return if acquired lock successfully
+     */
+    boolean tryLock();
 }

@@ -51,12 +51,12 @@ class DemoApplicationTests {
 
     @Test
     void testZkLock(){
-        
         Thread t1 = new Thread(()->{
             ZkLock lock = zkLockFactory.getLock("/testLock");
             for(int i=0;i<5;i++){
                 System.out.println(Thread.currentThread().getName()+" -> "+i);
             }
+            System.out.println("Thread A try to acquire the lock blockly");
             lock.lock();
             System.out.println("Thread A occupied the lock");
             for(int i=0;i<5;i++){
@@ -64,12 +64,12 @@ class DemoApplicationTests {
             }
             lock.releaseLock();
         },"ThreadA");
-        
         Thread t2 = new Thread(()->{
             ZkLock lock = zkLockFactory.getLock("/testLock");
             for(int i=0;i<5;i++){
                 System.out.println(Thread.currentThread().getName()+" -> "+i);
             }
+            System.out.println("Thread B try to acquire the lock blockly");
             lock.lock();
             System.out.println("Thread B occupied the lock");
             for(int i=0;i<5;i++){
@@ -77,16 +77,34 @@ class DemoApplicationTests {
             }
             lock.releaseLock();
         },"ThreadB");
-        
+        Thread t3 = new Thread(()->{
+            ZkLock lock = zkLockFactory.getLock("/testLock");
+            for(int i=0;i<5;i++){
+                System.out.println(Thread.currentThread().getName()+" -> "+i);
+            }
+            System.out.println("Thread C try to acquire the lock non-blockly");
+            if(lock.tryLock()){
+                System.out.println("Thread C occupied the lock");
+                for(int i=0;i<5;i++){
+                    System.out.println(Thread.currentThread().getName()+" [Locked]-> "+i);
+                }
+                lock.releaseLock();
+            }else{
+                System.out.println("Thread C failed to acquire the lock");
+            }
+        },"ThreadC");
         t1.start();
         t2.start();
+        t3.start();
         try {
             t1.join();
             t2.join();
+            t3.join();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
+
 }
 ```
 
@@ -94,4 +112,4 @@ class DemoApplicationTests {
 
 - [x] Block non-reentrant lock
 - [ ] Block reentrant lock
-- [ ] Non-block method to acquire lock
+- [x] Non-block method to acquire lock
