@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 public class ZkLockImpl implements ZkLock {
@@ -17,6 +18,9 @@ public class ZkLockImpl implements ZkLock {
 
     private final String lockPath;
     private final ZkClient zkClient;
+    private final String servers;
+    private final int sessionTimeout;
+    private final int connectionTimeout;
     private final ThreadLocal<String> curNode = new ThreadLocal<>();
     private final ThreadLocal<String> preNode = new ThreadLocal<>();
 
@@ -30,6 +34,9 @@ public class ZkLockImpl implements ZkLock {
      */
     public ZkLockImpl(String servers, int sessionTimeout, int connectionTimeout, String lockPath){
         this.lockPath = lockPath;
+        this.servers = servers;
+        this.sessionTimeout = sessionTimeout;
+        this.connectionTimeout = connectionTimeout;
         this.zkClient = new ZkClient(servers, sessionTimeout, connectionTimeout);
         if(!zkClient.exists(lockPath)){
             zkClient.createPersistent(lockPath);
@@ -37,6 +44,22 @@ public class ZkLockImpl implements ZkLock {
         }else {
             LOG.info("Connected to [{}], lock path:[{}] existed",servers,lockPath);
         }
+    }
+
+    public String getLockPath() {
+        return lockPath;
+    }
+
+    public String getServers() {
+        return servers;
+    }
+
+    public int getSessionTimeout() {
+        return sessionTimeout;
+    }
+
+    public int getConnectionTimeout() {
+        return connectionTimeout;
     }
 
     /**
@@ -105,5 +128,19 @@ public class ZkLockImpl implements ZkLock {
         }
         LOG.error("Illegally lock release");
         return false;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ZkLockImpl zkLock = (ZkLockImpl) o;
+        return Objects.equals(getLockPath(), zkLock.getLockPath()) &&
+                Objects.equals(getServers(), zkLock.getServers());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getLockPath(), getServers());
     }
 }
