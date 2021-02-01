@@ -88,6 +88,8 @@ public class ZkLockImpl implements ZkLock {
             semaphore.release();
         };
 
+        zkClient.subscribeChildChanges(lockPath, listener);
+
         if (Objects.isNull(curNode.get())) {
             curNode.set(zkClient.createEphemeralSequential(lockPath + "/", "Lock"));
             LOG.debug("curNode [{}] has been created", curNode.get());
@@ -96,16 +98,15 @@ public class ZkLockImpl implements ZkLock {
         }
 
         while (!checkLock()) {
-            zkClient.subscribeChildChanges(lockPath, listener);
             try {
                 LOG.debug("Thread blocked in lock [{}], listening path-[{}]", lockPath, lockPath);
                 semaphore.acquire();
             } catch (InterruptedException e) {
                 LOG.error(e.getMessage());
             }
-            zkClient.unsubscribeChildChanges(lockPath, listener);
             LOG.debug("Queue [{}] has changed, retry to acquire lock ",lockPath);
         }
+        zkClient.unsubscribeChildChanges(lockPath, listener);
     }
 
     @Override
