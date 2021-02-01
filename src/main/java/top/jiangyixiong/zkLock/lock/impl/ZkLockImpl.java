@@ -67,7 +67,7 @@ public class ZkLockImpl implements ZkLock {
      *
      * @return Ture if thread occupied the lock
      */
-    private boolean checkLock() {
+    protected boolean checkLock() {
         List<String> lockQueue = zkClient.getChildren(lockPath);
         Collections.sort(lockQueue);
         if(lockQueue.size()>0&&(lockPath+"/"+lockQueue.get(0)).equals(curNode.get())){
@@ -121,7 +121,7 @@ public class ZkLockImpl implements ZkLock {
 
     @Override
     public boolean tryLock() {
-        if(null==curNode.get()){
+        if(Objects.isNull(curNode.get())){
             curNode.set(zkClient.createEphemeralSequential(lockPath+"/","Lock"));
             LOG.debug("curNode [{}] has been created",curNode.get());
         }else {
@@ -141,7 +141,7 @@ public class ZkLockImpl implements ZkLock {
 
     @Override
     public boolean unlock() {
-        if(null!=curNode.get()&&zkClient.exists(curNode.get())&& checkLock()){
+        if(Objects.nonNull(curNode.get())&&zkClient.exists(curNode.get())&& checkLock()){
             if(zkClient.delete(curNode.get())){
                 LOG.debug("Lock [{}] released, Node [{}] has been deleted",lockPath,curNode.get());
                 curNode.remove();
