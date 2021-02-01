@@ -1,5 +1,6 @@
 package top.jiangyixiong.zkLock.lock.impl;
 
+import org.I0Itec.zkclient.ZkClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +27,7 @@ public class ZkReentrantLock extends ZkLockImpl{
             super.lock();
         }
         reentries.set(reentries.get()+1);
-        LOG.debug("Lock entry: {}",reentries);
+        LOG.debug("Lock entry: {}",reentries.get());
     }
 
     @Override
@@ -35,7 +36,7 @@ public class ZkReentrantLock extends ZkLockImpl{
             if(!super.tryLock()) return false;
         }
         reentries.set(reentries.get()+1);
-        LOG.debug("Lock entry: {}",reentries);
+        LOG.debug("Lock entry: {}",reentries.get());
         return true;
     }
 
@@ -46,6 +47,7 @@ public class ZkReentrantLock extends ZkLockImpl{
             return false;
         }
         reentries.set(reentries.get()-1);
+        LOG.debug("Lock exit: {}",reentries.get());
         if(reentries.get()<1){
             return super.unlock();
         }

@@ -3,6 +3,7 @@ package top.jiangyixiong.zkLock.lock;
 import org.springframework.stereotype.Service;
 import top.jiangyixiong.zkLock.config.ZkLockConfig;
 import top.jiangyixiong.zkLock.lock.impl.ZkLockImpl;
+import top.jiangyixiong.zkLock.lock.impl.ZkReentrantLock;
 
 import javax.annotation.Resource;
 
@@ -38,4 +39,11 @@ public class ZkLockFactory {
         return new ZkLockImpl(config.getZkServers(), config.getSessionTimeout(), config.getConnectionTimeout(), lockPath);
     }
 
+    public ZkLock getReentrantLock(){
+        return getReentrantLock(config.getLockPath());
+    }
+
+    public ZkLock getReentrantLock(String lockPath){
+        return new ZkReentrantLock(config.getZkServers(), config.getSessionTimeout(), config.getConnectionTimeout(), lockPath);
+    }
 }

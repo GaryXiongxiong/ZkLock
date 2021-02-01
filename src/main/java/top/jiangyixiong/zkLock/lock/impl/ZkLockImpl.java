@@ -1,6 +1,6 @@
 package top.jiangyixiong.zkLock.lock.impl;
 
-import org.I0Itec.zkclient.IZkDataListener;
+import org.I0Itec.zkclient.IZkChildListener;
 import top.jiangyixiong.zkLock.exception.LockException;
 import top.jiangyixiong.zkLock.lock.ZkLock;
 import org.I0Itec.zkclient.ZkClient;
@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 
 public class ZkLockImpl implements ZkLock {
 
@@ -22,27 +22,26 @@ public class ZkLockImpl implements ZkLock {
     private final int sessionTimeout;
     private final int connectionTimeout;
     private final ThreadLocal<String> curNode = new ThreadLocal<>();
-    private final ThreadLocal<String> preNode = new ThreadLocal<>();
 
     /**
      * Constructor for basic ZkLock
      *
-     * @param servers Servers list for zookeeper, see {@link ZkClient#ZkClient(java.lang.String, int, int)}
-     * @param sessionTimeout Session Timeout for zookeeper, see {@link ZkClient#ZkClient(java.lang.String, int, int)}
+     * @param servers           Servers list for zookeeper, see {@link ZkClient#ZkClient(java.lang.String, int, int)}
+     * @param sessionTimeout    Session Timeout for zookeeper, see {@link ZkClient#ZkClient(java.lang.String, int, int)}
      * @param connectionTimeout Connection Timeout for zookeeper, see {@link ZkClient#ZkClient(java.lang.String, int, int)}
-     * @param lockPath the path of this lock in zookeeper
+     * @param lockPath          the path of this lock in zookeeper
      */
-    public ZkLockImpl(String servers, int sessionTimeout, int connectionTimeout, String lockPath){
+    public ZkLockImpl(String servers, int sessionTimeout, int connectionTimeout, String lockPath) {
         this.lockPath = lockPath;
         this.servers = servers;
         this.sessionTimeout = sessionTimeout;
         this.connectionTimeout = connectionTimeout;
         this.zkClient = new ZkClient(servers, sessionTimeout, connectionTimeout);
-        if(!zkClient.exists(lockPath)){
+        if (!zkClient.exists(lockPath)) {
             zkClient.createPersistent(lockPath);
-            LOG.info("Connected to [{}], lock path:[{}] created",servers,lockPath);
-        }else {
-            LOG.info("Connected to [{}], lock path:[{}] existed",servers,lockPath);
+            LOG.info("Connected to [{}], lock path:[{}] created", servers, lockPath);
+        } else {
+            LOG.info("Connected to [{}], lock path:[{}] existed", servers, lockPath);
         }
     }
 
@@ -68,70 +67,60 @@ public class ZkLockImpl implements ZkLock {
      * @return Ture if thread occupied the lock
      */
     protected boolean checkLock() {
+        if (Objects.isNull(curNode.get())) return false;
         List<String> lockQueue = zkClient.getChildren(lockPath);
         Collections.sort(lockQueue);
-        if(lockQueue.size()>0&&(lockPath+"/"+lockQueue.get(0)).equals(curNode.get())){
-            LOG.debug("Lock [{}] acquired",lockPath);
+        if (lockQueue.size() > 0 && (lockPath + "/" + lockQueue.get(0)).equals(curNode.get())) {
+            LOG.debug("Lock [{}] acquired", lockPath);
             return true;
-        }else{
-            int index = lockQueue.indexOf(curNode.get().substring(lockPath.length()+1));
-            preNode.set(lockPath+"/"+lockQueue.get(index-1));
-            LOG.debug("Lock [{}] is occupied, set preNode to [{}]",lockPath,preNode.get());
+        } else {
+            LOG.debug("Lock [{}] is occupied by others", lockPath);
             return false;
         }
     }
 
     @Override
     public void lock() {
-        CountDownLatch latch = new CountDownLatch(1);
+        Semaphore semaphore = new Semaphore(0);
 
-        IZkDataListener listener = new IZkDataListener() {
-            @Override
-            public void handleDataChange(String dataPath, Object data) {
-
-            }
-
-            @Override
-            public void handleDataDeleted(String dataPath) {
-                LOG.debug("Node [{}] has been deleted",dataPath);
-                latch.countDown();
-            }
+        IZkChildListener listener = (dataPath, currentChilds) -> {
+            LOG.debug("Handling Child Change at [{}], children:[{}]", lockPath,currentChilds);
+            semaphore.release();
         };
 
-        if(null==curNode.get()){
-            curNode.set(zkClient.createEphemeralSequential(lockPath+"/","Lock"));
-            LOG.debug("curNode [{}] has been created",curNode.get());
-        }else {
+        if (Objects.isNull(curNode.get())) {
+            curNode.set(zkClient.createEphemeralSequential(lockPath + "/", "Lock"));
+            LOG.debug("curNode [{}] has been created", curNode.get());
+        } else {
             throw new LockException("ZkLock is not reentrant");
         }
 
-        if(!checkLock()&&zkClient.exists(preNode.get())){
-            zkClient.subscribeDataChanges(preNode.get(),listener);
-            while(zkClient.exists(preNode.get())&&!checkLock()){
-                try {
-                    LOG.debug("Thread blocked in lock [{}]",lockPath);
-                    latch.await();
-                } catch (InterruptedException e) {
-                    LOG.error(e.getMessage());
-                }
+        while (!checkLock()) {
+            zkClient.subscribeChildChanges(lockPath, listener);
+            try {
+                LOG.debug("Thread blocked in lock [{}], listening path-[{}]", lockPath, lockPath);
+                semaphore.acquire();
+            } catch (InterruptedException e) {
+                LOG.error(e.getMessage());
             }
-            zkClient.unsubscribeDataChanges(preNode.get(),listener);
+            zkClient.unsubscribeChildChanges(lockPath, listener);
+            LOG.debug("Queue [{}] has changed, retry to acquire lock ",lockPath);
         }
     }
 
     @Override
     public boolean tryLock() {
-        if(Objects.isNull(curNode.get())){
-            curNode.set(zkClient.createEphemeralSequential(lockPath+"/","Lock"));
-            LOG.debug("curNode [{}] has been created",curNode.get());
-        }else {
+        if (Objects.isNull(curNode.get())) {
+            curNode.set(zkClient.createEphemeralSequential(lockPath + "/", "Lock"));
+            LOG.debug("curNode [{}] has been created", curNode.get());
+        } else {
             throw new LockException("ZkLock is not reentrant");
         }
-        if(checkLock()){
+        if (checkLock()) {
             return true;
-        }else if(zkClient.exists(curNode.get())){
-            if(zkClient.delete(curNode.get())){
-                LOG.debug("Unable to acquire lock [{}], Node [{}] has been deleted",lockPath,curNode.get());
+        } else if (zkClient.exists(curNode.get())) {
+            if (zkClient.delete(curNode.get())) {
+                LOG.debug("Unable to acquire lock [{}], Node [{}] has been deleted", lockPath, curNode.get());
                 curNode.remove();
                 return false;
             }
@@ -141,9 +130,9 @@ public class ZkLockImpl implements ZkLock {
 
     @Override
     public boolean unlock() {
-        if(Objects.nonNull(curNode.get())&&zkClient.exists(curNode.get())&& checkLock()){
-            if(zkClient.delete(curNode.get())){
-                LOG.debug("Lock [{}] released, Node [{}] has been deleted",lockPath,curNode.get());
+        if (Objects.nonNull(curNode.get()) && zkClient.exists(curNode.get()) && checkLock()) {
+            if (zkClient.delete(curNode.get())) {
+                LOG.debug("Lock [{}] released, Node [{}] has been deleted", lockPath, curNode.get());
                 curNode.remove();
                 return true;
             }
