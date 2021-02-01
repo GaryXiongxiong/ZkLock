@@ -113,4 +113,4 @@ class DemoApplicationTests {
 - [x] Block non-reentrant lock
 - [x] Block reentrant lock
 - [x] Non-block method to acquire lock
-- [x] Optimize listener
+- [ ] Optimize listener
