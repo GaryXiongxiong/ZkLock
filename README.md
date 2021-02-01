@@ -111,5 +111,5 @@ class DemoApplicationTests {
 ## Todo:
 
 - [x] Block non-reentrant lock
-- [ ] Block reentrant lock
+- [x] Block reentrant lock
 - [x] Non-block method to acquire lock
